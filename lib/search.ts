@@ -9,6 +9,8 @@ import {
   describeGeneralFindings,
   mergeAndRankHits,
   officialDomains,
+  officialSourcesOnly,
+  retainOfficialHits,
 } from "@/lib/sources";
 
 export type { EventResult, EvidenceLabel } from "@/lib/events";
@@ -77,13 +79,17 @@ export async function searchWeb(query: string): Promise<SearchResponse> {
     throw failureFromSettled(settled);
   }
 
-  const hits = mergeAndRankHits(
+  const ranked = mergeAndRankHits(
     settled.map((result, index) => ({
       hits: result.status === "fulfilled" ? result.value : [],
       preferred: index === 1,
     })),
     domains ?? [],
   );
+  const hits =
+    domains && officialSourcesOnly(query)
+      ? retainOfficialHits(ranked, domains)
+      : ranked;
   const sources = hits.map(toSource);
 
   return {

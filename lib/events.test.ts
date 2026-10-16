@@ -282,6 +282,70 @@ test("does not treat a direct URL alone as a relevant event", () => {
   assert.match(result.message, /unverified/);
 });
 
+test("does not treat a Newark listing as a Manhattan match", () => {
+  const query =
+    "Find in-person AI and software developer events in Manhattan, New York, on October 17-19, 2026.";
+  const result = researchEvents(
+    [
+      {
+        title: "GarysGuide",
+        url: "https://www.garysguide.com/",
+        content: `October 18, 2026. AI and software developer meetup at 550 Broad St, Newark. New York tech events. ${longTalk}`,
+      },
+      {
+        title: "Newark AI meetup",
+        url: "https://example.com/newark-ai-meetup",
+        content: `October 18, 2026. A meetup for software developers. Venue: 550 Broad St, Newark. ${longTalk}`,
+      },
+      {
+        title: "Manhattan AI demo night",
+        url: "https://lu.ma/manhattan-ai-demo",
+        content: `October 18, 2026 at 6:00 PM. A demo night for software developers in Manhattan. ${longTalk}`,
+      },
+    ],
+    query,
+  );
+
+  assert.equal(
+    result.listings.some((page) => page.url === "https://www.garysguide.com/"),
+    true,
+  );
+  assert.equal(
+    result.events.some((event) => event.url.includes("garysguide")),
+    false,
+  );
+  assert.equal(
+    result.events.some((event) => event.url.endsWith("newark-ai-meetup")),
+    false,
+  );
+  assert.equal(
+    result.events.some((event) => /newark/i.test(event.venue ?? "")),
+    false,
+  );
+  assert.equal(result.events.filter((event) => event.relevance === "relevant").length, 1);
+  assert.equal(result.events[0]?.url, "https://lu.ma/manhattan-ai-demo");
+  assert.equal(result.events[0]?.when !== null, true);
+});
+
+test("keeps an in-range event unverified when place and date are not both supported", () => {
+  const result = researchEvents(
+    [
+      {
+        title: "AI developer workshop",
+        url: "https://lu.ma/undated-ai-workshop",
+        content: `A workshop for software developers in Manhattan. ${longTalk}`,
+      },
+    ],
+    "Find in-person AI and software developer events in Manhattan, New York, on October 17-19, 2026.",
+  );
+
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0]?.relevance, "unverified");
+  assert.equal(result.events[0]?.when, null);
+  assert.equal(result.events[0]?.venue, null);
+  assert.match(result.message, new RegExp(NO_MATCHING_EVENTS));
+});
+
 test("says evidence is insufficient when every result is a listing", () => {
   const result = researchEvents([
     {

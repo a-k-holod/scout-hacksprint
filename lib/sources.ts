@@ -22,6 +22,17 @@ export function officialDomains(query: string): string[] | null {
   return null;
 }
 
+export function officialSourcesOnly(query: string): boolean {
+  return officialDomains(query) !== null && /\bonly\b/i.test(query);
+}
+
+export function retainOfficialHits(
+  hits: RetrievedHit[],
+  domains: string[],
+): RetrievedHit[] {
+  return hits.filter((hit) => isOfficialHost(hit.url, domains));
+}
+
 export function mergeAndRankHits(
   groups: { hits: RetrievedHit[]; preferred: boolean }[],
   domains: string[],

@@ -320,6 +320,10 @@ export function isDirectoryUrl(url: string): boolean {
     return true;
   }
 
+  if (host === "garysguide.com" && parts.length === 0) {
+    return true;
+  }
+
   return false;
 }
 
@@ -448,6 +452,24 @@ function looksLikeEvent(text: string): boolean {
   );
 }
 
+const OUTSIDE_CITY = /\b(?:newark|jersey city|hoboken)\b/i;
+
+function venueConflicts(text: string, asked: string): boolean {
+  const venue = extractVenue(text);
+  if (!venue) {
+    return false;
+  }
+
+  if (OUTSIDE_CITY.test(venue)) {
+    return true;
+  }
+
+  const borough = venue
+    .match(/\b(manhattan|brooklyn|queens|bronx|staten island)\b/i)?.[1]
+    ?.toLowerCase();
+  return Boolean(borough && borough !== asked);
+}
+
 function locationMatch(
   query: string,
   text: string,
@@ -460,11 +482,22 @@ function locationMatch(
     return "not-required";
   }
 
+  if (asked && venueConflicts(text, asked)) {
+    return "mismatch";
+  }
+
   const found = [
     ...text.matchAll(
       /\b(manhattan|brooklyn|queens|bronx|staten island|nyc|new york(?: city)?)\b/gi,
     ),
   ].map((match) => match[1].toLowerCase());
+  const outside = Boolean(text.match(OUTSIDE_CITY));
+  const specific = asked ? found.some((place) => place === asked) : false;
+
+  if (outside && !specific) {
+    return "mismatch";
+  }
+
   if (found.length === 0) {
     return "missing";
   }
@@ -474,8 +507,7 @@ function locationMatch(
   }
 
   const generic = found.some((place) => place === "nyc" || place.startsWith("new york"));
-  const specific = found.some((place) => place === asked);
-  return specific || generic ? "ok" : "mismatch";
+  return specific || (generic && !outside) ? "ok" : "mismatch";
 }
 
 function topicMatch(
