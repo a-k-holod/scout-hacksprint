@@ -1,5 +1,7 @@
+import { enrichEventPages, readVisiblePages } from "@/lib/anchor";
 import {
   buildEventQueries,
+  isDirectoryUrl,
   isNycTechEventQuery,
   researchEvents,
   type EventResult,
@@ -136,8 +138,19 @@ async function searchEvents(
   }
 
   const pages = fulfilled.flatMap((result) => result.value);
-
-  const research = researchEvents(pages, query);
+  const anchorKey = process.env.ANCHORBROWSER_API_KEY?.trim();
+  const evidenced = anchorKey
+    ? await enrichEventPages(
+        pages,
+        (urls) => readVisiblePages(urls, anchorKey),
+        (url) => !isDirectoryUrl(url),
+      )
+    : { pages, opened: 0 };
+  const research = researchEvents(evidenced.pages, query);
+  const message =
+    evidenced.opened > 0
+      ? `${research.message} Visible text from opened event pages was included as evidence.`
+      : research.message;
 
   return {
     query,
@@ -145,7 +158,7 @@ async function searchEvents(
     sources: research.listings,
     events: research.events,
     focus: "events",
-    message: research.message,
+    message,
   };
 }
 
