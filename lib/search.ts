@@ -1,4 +1,5 @@
 import { enrichEventPages, readVisiblePages } from "@/lib/anchor";
+import { observationFor, observeSearch } from "@/lib/arize";
 import {
   buildEventQueries,
   isDirectoryUrl,
@@ -47,6 +48,40 @@ const REQUEST_TIMEOUT_MS = 25_000;
 const EVENT_PAGE_DOMAINS = ["lu.ma", "luma.com", "partiful.com"];
 
 export async function searchWeb(query: string): Promise<SearchResponse> {
+  const started = Date.now();
+
+  try {
+    const run = await runSearch(query);
+    observeSearch(
+      observationFor({
+        focus: run.response.focus,
+        candidateCount: run.candidateCount,
+        events: run.response.events,
+        pagesOpened: run.pagesOpened,
+        durationMs: Date.now() - started,
+      }),
+    );
+    return run.response;
+  } catch (error) {
+    observeSearch(
+      observationFor({
+        focus: isNycTechEventQuery(query) ? "events" : "general",
+        candidateCount: 0,
+        events: [],
+        pagesOpened: 0,
+        durationMs: Date.now() - started,
+        errorStatus: error instanceof SearchError ? error.status : 500,
+      }),
+    );
+    throw error;
+  }
+}
+
+async function runSearch(query: string): Promise<{
+  response: SearchResponse;
+  candidateCount: number;
+  pagesOpened: number;
+}> {
   const apiKey = process.env.TAVILY_API_KEY?.trim();
 
   if (!apiKey) {
@@ -95,23 +130,31 @@ export async function searchWeb(query: string): Promise<SearchResponse> {
   const sources = hits.map(toSource);
 
   return {
-    query,
-    connected: true,
-    sources,
-    events: [],
-    focus: "general",
-    message: describeGeneralFindings(
-      hits,
-      domains,
-      domains !== null && settled[1]?.status === "rejected",
-    ),
+    response: {
+      query,
+      connected: true,
+      sources,
+      events: [],
+      focus: "general",
+      message: describeGeneralFindings(
+        hits,
+        domains,
+        domains !== null && settled[1]?.status === "rejected",
+      ),
+    },
+    candidateCount: sources.length,
+    pagesOpened: 0,
   };
 }
 
 async function searchEvents(
   query: string,
   apiKey: string,
-): Promise<SearchResponse> {
+): Promise<{
+  response: SearchResponse;
+  candidateCount: number;
+  pagesOpened: number;
+}> {
   const queries = buildEventQueries(query);
   const settled = await Promise.allSettled(
     queries.map((focused, index) =>
@@ -153,12 +196,16 @@ async function searchEvents(
       : research.message;
 
   return {
-    query,
-    connected: true,
-    sources: research.listings,
-    events: research.events,
-    focus: "events",
-    message,
+    response: {
+      query,
+      connected: true,
+      sources: research.listings,
+      events: research.events,
+      focus: "events",
+      message,
+    },
+    candidateCount: pages.length,
+    pagesOpened: evidenced.opened,
   };
 }
 
