@@ -1,0 +1,3 @@
+Scout searches the web and shows the evidence it retrieved. A general question uses one advanced search. If you ask for an official source, Scout adds a second search on that site and lists those pages first. This James Webb question asks for NASA. NASA Science pages lead the results. They are search snippets. Scout does not read the full page, and it does not mark the launch date verified.
+
+New York event questions use a separate path. A match must show the event, the place, the topic, and a date inside the requested range. These pages have no confirmed date, so they stay under Unverified candidates. No price is attached to that weekend. Scout says no verified matching events were found. That is an honest result, not an error.
